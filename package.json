@@ -1,0 +1,20 @@
+{
+    "name": "mz-json-api",
+    "version": "0.0.1",
+    "private": true,
+    "workspaces": [
+        "packages/scrapper",
+        "packages/api"
+    ],
+    "devDependencies": {
+        "@types/node": "^20.12.5",
+        "@types/qs": "^6.9.14",
+        "nodemon": "^3.1.0",
+        "ts-node": "github:TypeStrong/ts-node#main",
+        "typescript": "^5.4.4"
+    },
+    "dependencies": {
+        "dotenv": "^16.4.5",
+        "qs": "^6.12.0"
+    }
+}
