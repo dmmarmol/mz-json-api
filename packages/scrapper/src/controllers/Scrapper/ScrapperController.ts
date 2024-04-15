@@ -4,8 +4,9 @@ import curlirize from "axios-to-curl";
 import { wrapper } from "axios-cookiejar-support";
 import { CookieJar } from "tough-cookie";
 
+const envPath = path.resolve(__dirname, "./../../../../../.env");
 require("dotenv").config({
-	path: path.resolve(__dirname, "./../../../../../.env"),
+	path: envPath,
 });
 
 class ScrapperController {

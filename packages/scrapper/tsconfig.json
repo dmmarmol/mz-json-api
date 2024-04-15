@@ -7,7 +7,8 @@
 		"baseUrl": "./src",
 		"outDir": "./dist",
 		"declaration": true,
-		"typeRoots": ["./global.d.ts"]
+		"typeRoots": ["./global.d.ts"],
+		"esModuleInterop": true
 	},
 	"include": ["src/**/*.ts"],
 	"exclude": ["node_modules"]

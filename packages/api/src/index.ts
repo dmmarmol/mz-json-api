@@ -6,8 +6,6 @@ require("dotenv").config({
 	path: envPath,
 });
 
-console.log(envPath);
-
 if (!process.env.API_PORT) {
 	throw new Error("Missing API_PORT .env variable");
 }
