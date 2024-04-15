@@ -56,46 +56,21 @@ class ScrapperController {
 			withCredentials: false,
 			maxRedirects: 5, // Set the maximum number of redirects to follow
 			validateStatus: (status) => (status >= 200 && status < 300) || status === 302, // Allow axios to follow redirects
-
 			headers: {
 				Accept: "application/json, text/javascript, */*; q=0.01",
 				"X-Requested-With": "XMLHttpRequest",
 				"Access-Control-Allow-Origin": "*",
-				// 'Content-Type': 'application/x-www-form-urlencoded',
-				// "Content-Type": "application/x-www-form-urlencoded",
-				// "User-Agent": "PostmanRuntime/7.36.0",
-				// Accept: "*/*",
-				// "Cache-Control": "no-cache",
-				// "Postman-Token": "1bb7df70-0d3d-4c52-96ee-c8e83871bd01",
-				// Host: "www.managerzone.com",
-				// "Accept-Encoding": "gzip, deflate, br",
-				// Connection: "keep-alive",
-				// "Content-Length": "114",
-				// Accept: "*/*",
-				// "Accept-Encoding": "gzip, deflate, br",
-				// Host: "www.managerzone.com",
-				// Connection: "keep-alive",
-				// "Cache-Control": "no-cache",
-				// "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-				// 'X-Custom-Header': 'foobar'
-				// Cookie: "sessionid=abcdef123456",
 			},
 		});
 
 		// Handle Cookies
 		const clientInstance = wrapper(instance);
+		if (process.env.DEBUG) {
+			// Print cURL request
+			curlirize(clientInstance);
+		}
 
 		clientInstance.interceptors.request.use((req) => {
-			// @ts-ignore
-			curlirize(clientInstance);
-
-			// if (typeof req.url === "string") {
-			// 	const hasTrailingSlash = req.url[req.url.length - 1] === "/";
-			// 	if (!hasTrailingSlash) {
-			// 		req.url += "/";
-			// 	}
-			// }
-			// console.log("Starting Request", req);
 			if (process.env.DEBUG) {
 				console.log("Starting Request", {
 					method: req.method,
@@ -103,9 +78,8 @@ class ScrapperController {
 					headers: req.headers,
 					data: req.data,
 				});
+				console.log("\n");
 			}
-			// console.log(typeof req.data);
-			// console.log("\n");
 
 			return req;
 		});
