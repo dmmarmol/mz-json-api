@@ -3,10 +3,12 @@
 	"ts-node": {
 		"files": true
 	},
-	"files": ["index.ts", "global.d.ts"],
 	"compilerOptions": {
 		"baseUrl": "./src",
+		"outDir": "./dist",
+		"declaration": true,
 		"typeRoots": ["./global.d.ts"]
 	},
-	"include": ["**/*.ts"]
+	"include": ["src/**/*.ts"],
+	"exclude": ["node_modules"]
 }
