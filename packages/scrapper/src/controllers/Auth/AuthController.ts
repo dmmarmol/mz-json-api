@@ -1,6 +1,9 @@
 import cheerio from "cheerio";
 import qs from "qs";
 import ScrapperController from "../Scrapper/ScrapperController";
+import { data } from "cheerio/lib/api/attributes";
+
+type AuthCredentials = { username: string; password: string };
 
 class AuthController extends ScrapperController {
 	private RETRY_TIME = 5000;
@@ -11,9 +14,49 @@ class AuthController extends ScrapperController {
 			username: process.env.SCRAPPER_AUTH_USERNAME as string,
 			password: process.env.SCRAPPER_AUTH_MD5_PASSWORD as string,
 		});
+
+		// this.exampleRequest({
+		// 	username: process.env.SCRAPPER_AUTH_USERNAME as string,
+		// 	password: process.env.SCRAPPER_AUTH_MD5_PASSWORD as string,
+		// });
 	}
 
-	private async authenticate({ username, password }: { username: string; password: string }) {
+	private async exampleRequest({ username, password }: AuthCredentials) {
+		const url = "https://www.managerzone.com/?p=login";
+		const logindata = {
+			md5: password,
+			username,
+			sport: process.env.SCRAPPER_MZSPORT,
+		};
+
+		const formData = qs.stringify({ logindata }, { encode: false });
+
+		// const formData = new FormData();
+		// formData.append("logindata[md5]", password);
+		// formData.append("logindata[username]", username);
+		// formData.append("logindata[sport]", process.env.SCRAPPER_MZSPORT as string);
+		// formData.append("logindata[markasdefault]", "");
+		// const remember_me = `a:2:{s:8:"username";s:10:"${username}";s:8:"password";s:32:"${password}";}`;
+		// formData.append("logindata[remember_me]", remember_me);
+
+		try {
+			this.axios.post(url, formData, {
+				headers: {
+					// Accept: "application/json, text/plain, */*",
+					"Content-Type": "application/x-www-form-urlencoded",
+				},
+				transformRequest: (data, headers) => {
+					console.log("typeof", typeof formData);
+					// return formData;
+					return data;
+				},
+			});
+		} catch (error: any) {
+			throw new Error(error);
+		}
+	}
+
+	private async authenticate({ username, password }: AuthCredentials) {
 		if (!username) {
 			throw new Error("Missing username. Cannot authenticate");
 		}
@@ -45,15 +88,22 @@ class AuthController extends ScrapperController {
 
 		try {
 			console.log("⏳ Ready to login");
-			const response = await this.axios.post("/?p=login", formData, {
+			const response = await this.axios.post(`${this.axios.defaults.baseURL}?p=login`, formData, {
 				headers: {
 					"Content-type": "application/x-www-form-urlencoded",
-					//   Cookie: `MZLANG=${process.env.SCRAPPER_MZLANG}; MZSPORT=${process.env.SCRAPPER_MZSPORT}; MZLOGIN=1;`,
+				},
+				transformRequest: (data) => {
+					return formData;
 				},
 			});
 
 			if (response.status !== 200) {
 				throw new Error(response.data);
+			}
+
+			if (process.env.DEBUG) {
+				console.log("🍪 Response Cookies");
+				console.log(response.config.jar?.toJSON());
 			}
 
 			const $ = cheerio.load(response.data);

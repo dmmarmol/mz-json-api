@@ -1,4 +1,12 @@
 {
-  "extends": ["../../tsconfig.json"],
-  "include": ["src/**/*.ts"]
+	"extends": ["../../tsconfig.json"],
+	"ts-node": {
+		"files": true
+	},
+	"files": ["index.ts", "global.d.ts"],
+	"compilerOptions": {
+		"baseUrl": "./src",
+		"typeRoots": ["./global.d.ts"]
+	},
+	"include": ["**/*.ts"]
 }
