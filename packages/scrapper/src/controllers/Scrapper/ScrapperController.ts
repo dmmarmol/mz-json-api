@@ -11,6 +11,7 @@ require("dotenv").config({
 class ScrapperController {
 	public baseUrl: string;
 	public axios: AxiosInstance;
+	public cookies: CookieJar.Serialized["cookies"] = [];
 
 	private availablePaths = {
 		players: "players",
@@ -33,7 +34,7 @@ class ScrapperController {
 		this.axios = this._getAxiosInstance();
 	}
 
-	_getBaseUrl = (): string => {
+	private _getBaseUrl = (): string => {
 		try {
 			if (!process.env.SCRAPPER_BASE_URL) {
 				throw "Missing SCRAPPER_BASE_URL in .env file";
@@ -45,7 +46,7 @@ class ScrapperController {
 		}
 	};
 
-	_getAxiosInstance = (): AxiosInstance => {
+	private _getAxiosInstance = (): AxiosInstance => {
 		// Create Cookie Jar
 		const jar = new CookieJar();
 

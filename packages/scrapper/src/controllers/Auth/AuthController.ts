@@ -8,14 +8,40 @@ class AuthController extends ScrapperController {
 	private RETRY_TIME = 5000;
 	constructor() {
 		super();
+		this._cookieInterceptor();
 
-		this.authenticate({
-			username: process.env.SCRAPPER_AUTH_USERNAME as string,
-			password: process.env.SCRAPPER_AUTH_MD5_PASSWORD as string,
-		});
+		// console.log("this._isAuthenticated()", this._isAuthenticated());
+		// this._authenticate({
+		// 	username: process.env.SCRAPPER_AUTH_USERNAME as string,
+		// 	password: process.env.SCRAPPER_AUTH_MD5_PASSWORD as string,
+		// });
 	}
 
-	private async authenticate({ username, password }: AuthCredentials) {
+	private _isAuthenticated() {
+		return this.cookies.some((cookie) => cookie.startsWith("PHPSESSID"));
+	}
+
+	private _cookieInterceptor() {
+		this.axios.interceptors.response.use(
+			(response) => {
+				const cookies = response.config.jar?.toJSON();
+				if (process.env.DEBUG) {
+					console.log("🍪 Response Cookies");
+					console.log(cookies);
+				}
+				this.cookies = cookies ? cookies.cookies : [];
+
+				// Return the response
+				return response;
+			},
+			(error) => {
+				// Handle errors
+				return Promise.reject(error);
+			}
+		);
+	}
+
+	private async _authenticate({ username, password }: AuthCredentials) {
 		if (!username) {
 			throw new Error("Missing username. Cannot authenticate");
 		}
@@ -36,7 +62,8 @@ class AuthController extends ScrapperController {
 
 		try {
 			console.log("⏳ Ready to login");
-			const response = await this.axios.post(`${this.axios.defaults.baseURL}?p=login`, formData, {
+			const url = `${this.axios.defaults.baseURL}?p=login`;
+			const response = await this.axios.post(url, formData, {
 				headers: {
 					"Content-type": "application/x-www-form-urlencoded",
 				},
@@ -49,19 +76,15 @@ class AuthController extends ScrapperController {
 				throw new Error(response.data);
 			}
 
-			if (process.env.DEBUG) {
-				console.log("🍪 Response Cookies");
-				console.log(response.config.jar?.toJSON());
-			}
-
 			const $ = cheerio.load(response.data);
 			const pageTitle = $("html head title").html();
-			console.log({ pageTitle });
+
+			console.log($("#hub-intro > div:nth-child(1) > div > h1").html());
 
 			if (pageTitle?.includes("Logout")) {
 				console.warn(`Logged out of Managerzone. Trying again in ${this.RETRY_TIME / 1000} seconds...`);
 				setTimeout(() => {
-					return this.authenticate({ username, password });
+					return this._authenticate({ username, password });
 				}, this.RETRY_TIME);
 			} else {
 				console.log("✅ Login successful!");
