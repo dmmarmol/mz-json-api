@@ -9,11 +9,14 @@ require("dotenv").config({
 	path: envPath,
 });
 
+export type ScrapperSettings = {
+	cookies?: CookieJar.Serialized["cookies"];
+};
+
 class ScrapperController {
-	public baseUrl: string;
+	public baseUrl?: string;
 	public axios: AxiosInstance;
 	public cookies: CookieJar.Serialized["cookies"] = [];
-
 	private availablePaths = {
 		players: "players",
 		transfer: "transfer",
@@ -27,12 +30,23 @@ class ScrapperController {
 		followingTransfers: `p=${this.availablePaths.transfer}&sub=${this.availableSub.bids}`,
 	};
 
-	constructor() {
+	constructor(settings?: ScrapperSettings) {
 		if (process.env.DEBUG) {
 			this._checkEnvs();
 		}
-		this.baseUrl = this._getBaseUrl();
-		this.axios = this._getAxiosInstance();
+
+		if (settings?.cookies) {
+			this.cookies = settings.cookies;
+		}
+
+		if (!this.baseUrl) {
+			this.baseUrl = this._getBaseUrl();
+		}
+
+		// @ts-expect-error
+		if (typeof this.axios === "undefined") {
+			this.axios = this._getAxiosInstance();
+		}
 	}
 
 	private _getBaseUrl = (): string => {
@@ -51,6 +65,7 @@ class ScrapperController {
 		// Create Cookie Jar
 		const jar = new CookieJar();
 
+		// Axios Instance
 		const instance = axios.create({
 			jar,
 			baseURL: this.baseUrl,
@@ -74,13 +89,12 @@ class ScrapperController {
 
 		clientInstance.interceptors.request.use((req) => {
 			if (process.env.DEBUG) {
-				console.log("Starting Request", {
+				console.log("\n 🔜 Starting Request", {
 					method: req.method,
 					url: req.url,
 					headers: req.headers,
 					data: req.data,
 				});
-				console.log("\n");
 			}
 
 			return req;
@@ -88,15 +102,25 @@ class ScrapperController {
 
 		clientInstance.interceptors.response.use((res) => {
 			if (process.env.DEBUG) {
-				console.log("Response:", {
+				const title = this.getPageTitle(res.data);
+
+				console.log("\n 🔚 Response:", {
 					status: res.status,
 					statusText: res.statusText,
 					headers: res.headers,
-					data: res.data,
+					data: res.data?.slice(0, 100),
+					title,
 				});
-				console.log("\n");
 			}
 
+			const cookies = res.config.jar?.toJSON();
+			if (process.env.DEBUG) {
+				console.log("🍪 Response Cookies");
+				console.log(cookies);
+			}
+			this.cookies = cookies ? cookies.cookies : [];
+
+			// Return the response
 			return res;
 		});
 
@@ -105,11 +129,29 @@ class ScrapperController {
 
 	private _checkEnvs() {
 		console.log("\n🔍 Check if env variables are set");
-		const vars = ["SCRAPPER_BASE_URL", "SCRAPPER_AUTH_USERNAME", "SCRAPPER_AUTH_MD5_PASSWORD", "SCRAPPER_MZSPORT", "SCRAPPER_MZLANG"];
+		const vars = ["SCRAPPER_BASE_URL", "SCRAPPER_AUTH_USERNAME", "SCRAPPER_AUTH_MD5_PASSWORD", "SCRAPPER_MZSPORT", "SCRAPPER_MZLANG", "DEBUG"];
 		vars.forEach((envVar) => {
 			console.log(`${envVar}=${process.env[envVar]}`);
 		});
 		console.log("🔚 Done\n");
+	}
+
+	public getCookies(selectedCookies: string[] = this.cookies.map((cookie) => cookie.key)) {
+		const filtered = this.cookies.filter((cookie) => selectedCookies.includes(cookie.key));
+		const cookies = filtered.map((cookie) => {
+			return `${cookie.key}=${cookie.value};`;
+			// return `${cookie.key}=${cookie.value}; expires=${cookie.expires}; path=${cookie.path}; domain=*;`;
+		});
+
+		return cookies.join(" ");
+	}
+
+	public getPageTitle(body: string): string {
+		const regex = /<title>(.*?)<\/title>/;
+		const pageTitle = body.match(regex);
+		const title = pageTitle && pageTitle.length >= 2 ? pageTitle[1] : "";
+
+		return title;
 	}
 }
 

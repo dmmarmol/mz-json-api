@@ -1,14 +1,21 @@
 import cheerio from "cheerio";
 import qs from "qs";
-import ScrapperController from "../Scrapper/ScrapperController";
+import ScrapperController, { ScrapperSettings } from "../Scrapper/ScrapperController";
+import { AxiosInstance, AxiosResponse } from "axios";
+import { StatusCodes } from "http-status-codes";
+import { Cookie } from "tough-cookie";
 
 type AuthCredentials = { username: string; password: string };
+// JSON
+type JSONPrimitiveValues = string | boolean | number | Cookie.Serialized;
+type JSONValues = JSONPrimitiveValues | Array<JSONPrimitiveValues>;
+type JSONResponse = JSONValues | Record<string, JSONValues | Record<string, JSONValues>>;
 
 class AuthController extends ScrapperController {
 	private RETRY_TIME = 5000;
+
 	constructor() {
 		super();
-		this._cookieInterceptor();
 
 		// console.log("this._isAuthenticated()", this._isAuthenticated());
 		// this._authenticate({
@@ -17,31 +24,22 @@ class AuthController extends ScrapperController {
 		// });
 	}
 
+	private _addCookieInterceptor() {
+		this.axios.interceptors.request.use((req) => {
+			if (this._isAuthenticated()) {
+				const cookie = this.getCookies(["PHPSESSID", "MZLANG", "MZSPORT", "MZLOGIN"]);
+				req.headers.cookie = cookie;
+			}
+
+			return req;
+		});
+	}
+
 	private _isAuthenticated() {
 		return this.cookies.some((cookie) => cookie.startsWith("PHPSESSID"));
 	}
 
-	private _cookieInterceptor() {
-		this.axios.interceptors.response.use(
-			(response) => {
-				const cookies = response.config.jar?.toJSON();
-				if (process.env.DEBUG) {
-					console.log("🍪 Response Cookies");
-					console.log(cookies);
-				}
-				this.cookies = cookies ? cookies.cookies : [];
-
-				// Return the response
-				return response;
-			},
-			(error) => {
-				// Handle errors
-				return Promise.reject(error);
-			}
-		);
-	}
-
-	private async _authenticate({ username, password }: AuthCredentials) {
+	public async authenticate({ username, password }: AuthCredentials): Promise<AxiosResponse<JSONResponse>> {
 		if (!username) {
 			throw new Error("Missing username. Cannot authenticate");
 		}
@@ -61,9 +59,11 @@ class AuthController extends ScrapperController {
 		const formData = qs.stringify({ logindata }, { encode: false });
 
 		try {
-			console.log("⏳ Ready to login");
+			if (process.env.DEBUG) {
+				console.log("⏳ Ready to login");
+			}
 			const url = `${this.axios.defaults.baseURL}?p=login`;
-			const response = await this.axios.post(url, formData, {
+			const response = await this.axios.post<string>(url, formData, {
 				headers: {
 					"Content-type": "application/x-www-form-urlencoded",
 				},
@@ -73,28 +73,38 @@ class AuthController extends ScrapperController {
 			});
 
 			if (response.status !== 200) {
-				throw new Error(response.data);
+				throw response;
 			}
 
-			const $ = cheerio.load(response.data);
-			const pageTitle = $("html head title").html();
-
-			console.log($("#hub-intro > div:nth-child(1) > div > h1").html());
+			const pageTitle = this.getPageTitle(response.data);
 
 			if (pageTitle?.includes("Logout")) {
-				console.warn(`Logged out of Managerzone. Trying again in ${this.RETRY_TIME / 1000} seconds...`);
-				setTimeout(() => {
-					return this._authenticate({ username, password });
-				}, this.RETRY_TIME);
-			} else {
-				console.log("✅ Login successful!");
-				console.log(`Code: ${response.status}`);
-				return response;
+				throw {
+					...response,
+					status: StatusCodes.UNAUTHORIZED,
+					statusText: "There was an error while loging in",
+					data: "Logged out of Managerzone.",
+				};
 			}
-		} catch (reason: any) {
-			console.error("There was an error while loging in");
-			throw new Error(reason);
+
+			const json = this.parseAuthenticateResponse(response);
+
+			return {
+				...response,
+				data: json,
+			};
+		} catch (response: any) {
+			const res: AxiosResponse<string> = response;
+
+			console.error(res.statusText);
+			throw res;
 		}
+	}
+
+	private parseAuthenticateResponse({ data, ...response }: AxiosResponse<string>): JSONValues {
+		const cookies = response.config.jar?.toJSON()?.cookies ?? [];
+
+		return cookies;
 	}
 }
 
