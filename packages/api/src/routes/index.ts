@@ -8,18 +8,15 @@ app.get("/", (req, res) => {
 });
 
 app.post("/login", async (req, res) => {
-	// res.json({
-	// 	message: "Login request",
-	// 	body: req.body,
-	// });
-
 	try {
-		const authController = new AuthController({
+		const credentials = {
 			username: req.body["username"],
 			password: req.body["password"],
-		});
-		const response = await authController.authenticate();
-		res.json(JSON.stringify(response, null, 2));
+		};
+		const authController = new AuthController();
+		const response = await authController.authenticate(credentials);
+
+		res.status(response.status).json(response.data);
 	} catch (reason: any) {
 		res.status(500).send({
 			message: "There was an error",
