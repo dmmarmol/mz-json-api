@@ -1,3 +1,4 @@
+import { StatusCodes } from "http-status-codes";
 import { app } from "../../app";
 import { AuthController } from "scrapper";
 import { Cookie } from "tough-cookie";
@@ -42,4 +43,11 @@ app.post("/login", async (req, res) => {
 	} catch (response: any) {
 		res.status(response.status).json(response);
 	}
+});
+
+app.post("/logout", (req, res) => {
+	res.clearCookie("PHPSESSID");
+	res.clearCookie("MZLOGIN");
+	res.clearCookie("MZLANG");
+	res.status(StatusCodes.NO_CONTENT).end();
 });

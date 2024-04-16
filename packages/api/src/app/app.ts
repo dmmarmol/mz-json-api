@@ -23,9 +23,10 @@ app.use(cookieParser());
 // Middleware to manage sessions
 app.use(
 	session({
-		secret: "your-secret-key",
+		secret: process.env.API_SESSION_SECRET_KEY as string,
 		resave: false,
 		saveUninitialized: false,
-		cookie: { secure: false }, // Adjust this configuration based on your deployment environment
+		// Adjust this configuration based on your deployment environment
+		cookie: { secure: process.env.NODE_ENV === "production" },
 	})
 );
