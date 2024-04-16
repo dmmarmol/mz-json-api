@@ -8,7 +8,8 @@
         "type-check": "tsc --project tsconfig.json --pretty --noEmit",
         "build": "tsc",
         "prebuild": "npm run type-check",
-        "deps": "npm remove scrapper && npm install scrapper"
+        "deps": "npm remove scrapper && npm install scrapper",
+        "restart": "npm run deps && npm run dev"
     },
     "dependencies": {
         "cookie-parser": "^1.4.6",
