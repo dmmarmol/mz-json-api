@@ -1,15 +1,18 @@
 import cheerio from "cheerio";
 import qs from "qs";
 import ScrapperController, { ScrapperSettings } from "../Scrapper/ScrapperController";
-import { AxiosInstance, AxiosResponse } from "axios";
+import { AxiosPromise, AxiosResponse } from "axios";
 import { StatusCodes } from "http-status-codes";
-import { Cookie } from "tough-cookie";
+import { Cookie, CookieJar } from "tough-cookie";
 
 type AuthCredentials = { username: string; password: string };
 // JSON
-type JSONPrimitiveValues = string | boolean | number | Cookie.Serialized;
-type JSONValues = JSONPrimitiveValues | Array<JSONPrimitiveValues>;
-type JSONResponse = JSONValues | Record<string, JSONValues | Record<string, JSONValues>>;
+type JSONPrimitiveValues = string | boolean | number | null | Cookie.Serialized;
+type JSONValues = JSONPrimitiveValues | JSONPrimitiveValues[] | { [key: string]: JSONValues };
+type JSONResponse<R = any> = R extends unknown ? R : JSONValues | Record<string, JSONValues | Record<string, JSONValues>>;
+
+// AuthController
+type AuthenticateResponse = JSONResponse<CookieJar.Serialized>;
 
 class AuthController extends ScrapperController {
 	private RETRY_TIME = 5000;
@@ -39,7 +42,7 @@ class AuthController extends ScrapperController {
 		return this.cookies.some((cookie) => cookie.startsWith("PHPSESSID"));
 	}
 
-	public async authenticate({ username, password }: AuthCredentials): Promise<AxiosResponse<JSONResponse>> {
+	public async authenticate({ username, password }: AuthCredentials): AxiosPromise<AuthenticateResponse> {
 		if (!username) {
 			throw new Error("Missing username. Cannot authenticate");
 		}
@@ -87,11 +90,11 @@ class AuthController extends ScrapperController {
 				};
 			}
 
-			const json = this.parseAuthenticateResponse(response);
+			const jsonCookies = this.parseAuthenticateResponse(response);
 
 			return {
 				...response,
-				data: json,
+				data: jsonCookies,
 			};
 		} catch (response: any) {
 			const res: AxiosResponse<string> = response;
@@ -101,10 +104,11 @@ class AuthController extends ScrapperController {
 		}
 	}
 
-	private parseAuthenticateResponse({ data, ...response }: AxiosResponse<string>): JSONValues {
-		const cookies = response.config.jar?.toJSON()?.cookies ?? [];
+	private parseAuthenticateResponse({ data, ...response }: AxiosResponse<string>): AuthenticateResponse {
+		const DEFAULT_RESPONSE = {} as AuthenticateResponse;
+		const cookies = response.config.jar?.toJSON();
 
-		return cookies;
+		return cookies ?? DEFAULT_RESPONSE;
 	}
 }
 
