@@ -1,15 +1,10 @@
-import cheerio from "cheerio";
 import qs from "qs";
-import ScrapperController, { ScrapperSettings } from "../Scrapper/ScrapperController";
-import { AxiosPromise, AxiosResponse } from "axios";
-import { StatusCodes } from "http-status-codes";
+import ScrapperController from "../Scrapper/ScrapperController";
+import { AxiosPromise, AxiosResponse, HttpStatusCode } from "axios";
 import { Cookie, CookieJar } from "tough-cookie";
+import { JSONResponse } from "controllers/types";
 
 type AuthCredentials = { username: string; password: string };
-// JSON
-type JSONPrimitiveValues = string | boolean | number | null | Cookie.Serialized;
-type JSONValues = JSONPrimitiveValues | JSONPrimitiveValues[] | { [key: string]: JSONValues };
-type JSONResponse<R = any> = R extends unknown ? R : JSONValues | Record<string, JSONValues | Record<string, JSONValues>>;
 
 // AuthController
 type AuthenticateResponse = JSONResponse<CookieJar.Serialized>;
@@ -84,7 +79,7 @@ class AuthController extends ScrapperController {
 			if (pageTitle?.includes("Logout")) {
 				throw {
 					...response,
-					status: StatusCodes.UNAUTHORIZED,
+					status: HttpStatusCode.Unauthorized,
 					statusText: "There was an error while loging in",
 					data: "Logged out of Managerzone.",
 				};
