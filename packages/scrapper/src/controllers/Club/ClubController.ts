@@ -24,6 +24,7 @@ type ClubAward = {
 	list: {
 		src: string;
 		title: string;
+		season: string;
 	}[];
 };
 type ClubAwardsResponse = { awards: ClubAward[] };
@@ -147,9 +148,11 @@ class ClubController extends ScrapperController {
 					const title = $(row).find(":nth-child(odd) > td:nth-child(1) b").text();
 					const src = $(row).find(":nth-child(odd) > td.trophy-container img").attr("src") as string;
 					const resourceUrl = this.getResourceUrl(src);
+					const season = $(row).find(":nth-child(even) > td").text();
 
 					return {
 						title,
+						season,
 						src: resourceUrl,
 					};
 				});
@@ -159,25 +162,6 @@ class ClubController extends ScrapperController {
 				list: trophyList,
 			};
 		});
-
-		console.log(JSON.stringify(trophiesList, null, 2));
-		// const trophiesRow = $("#cabinet_content > div > table > tbody tr")
-		// 	.toArray()
-		// 	.filter((row) => {
-		// 		console.log("filter", $(row).find("> td:nth-child(1)").text());
-		// 		return true;
-		// 	});
-		// const trophies = trophiesRow.map((row): ClubAward => {
-		// 	const title = $(row).find("> td:nth-child(1) b").text();
-		// 	const src = $(row).find("> td:last-child img").attr("src") as string;
-		// 	const resourceUrl = this.getResourceUrl(src);
-		// 	// console.log({ row, title, src, resourceUrl });
-
-		// 	return {
-		// 		title,
-		// 		src: resourceUrl,
-		// 	};
-		// });
 
 		const result: ClubAwardsResponse = {
 			awards: trophiesList,

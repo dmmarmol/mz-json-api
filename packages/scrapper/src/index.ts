@@ -19,5 +19,5 @@ async function init() {
 }
 
 if (process.env.DEBUG) {
-	init();
+	// init();
 }
