@@ -1,7 +1,7 @@
 import cheerio from "cheerio";
-import { AxiosPromise, AxiosResponse } from "axios";
+import { AxiosError, AxiosPromise, AxiosResponse } from "axios";
 import ScrapperController, { ScrapperSettings } from "../Scrapper/ScrapperController";
-import { JSONResponse } from "controllers/types";
+import { JSONResponse, AvailableURLPaths, AvailableURLSub } from "controllers/types";
 
 type ClubInfoResponse = {
 	club: {
@@ -30,31 +30,30 @@ type ClubAward = {
 type ClubAwardsResponse = { awards: ClubAward[] };
 type ClubControllerMainResponse = ClubInfoResponse & ClubAwardsResponse;
 type GetRequestParams<R extends JSONResponse> = {
-	path: "team" | "clubhouse";
-	sub?: "awards";
+	path: AvailableURLPaths;
+	sub?: AvailableURLSub;
 	parser(body: string): R;
 };
 
 class ClubController extends ScrapperController {
-	constructor(settings: ScrapperSettings) {
+	constructor(settings?: ScrapperSettings) {
 		super(settings);
 	}
 
 	public async getClubInfo(): AxiosPromise<ClubControllerMainResponse> {
 		try {
 			const promises = [
-				this._getRequest<ClubInfoResponse>({
+				this.getRequest<ClubInfoResponse>({
 					path: "team",
 					parser: this._parseClubTeamBody,
 				}),
-				this._getRequest<ClubAwardsResponse>({
+				this.getRequest<ClubAwardsResponse>({
 					path: "team",
 					sub: "awards",
 					parser: this._parseClubAwardsBody,
 				}),
 			];
 			const [info, awards] = await Promise.all(promises);
-			// const [info] = await Promise.all(promises);
 			const responseData: ClubControllerMainResponse = {
 				...(info.data as ClubInfoResponse),
 				...(awards.data as ClubAwardsResponse),
@@ -65,11 +64,12 @@ class ClubController extends ScrapperController {
 				data: responseData,
 			};
 		} catch (response: any) {
-			throw new Error(response);
+			const res: AxiosResponse<string> = response;
+			throw new AxiosError(res.statusText, undefined, res.config, undefined, res);
 		}
 	}
 
-	private _getRequest<R>({ path, sub, parser }: GetRequestParams<R>): AxiosPromise<R> {
+	public getRequest<R>({ path, sub, parser }: GetRequestParams<R>): AxiosPromise<R> {
 		try {
 			const url = this.getFullUrl({ path, sub });
 			const cookies = this.getCookies();
@@ -85,8 +85,7 @@ class ClubController extends ScrapperController {
 			return request;
 		} catch (response: any) {
 			const res: AxiosResponse<string> = response;
-			console.error(res.statusText);
-			throw res;
+			throw new AxiosError(res.statusText, undefined, res.config, undefined, res);
 		}
 	}
 

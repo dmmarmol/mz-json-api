@@ -1,11 +1,10 @@
 import qs from "qs";
 import ScrapperController from "../Scrapper/ScrapperController";
-import { AxiosPromise, AxiosResponse, HttpStatusCode } from "axios";
-import { Cookie, CookieJar } from "tough-cookie";
-import { JSONResponse } from "controllers/types";
+import { AxiosError, AxiosPromise, AxiosResponse, HttpStatusCode } from "axios";
+import { CookieJar } from "tough-cookie";
+import { JSONResponse, SCRAPPER_HEADERS } from "../types";
 
 type AuthCredentials = { username: string; password: string };
-
 // AuthController
 type AuthenticateResponse = JSONResponse<CookieJar.Serialized>;
 
@@ -39,10 +38,10 @@ class AuthController extends ScrapperController {
 
 	public async authenticate({ username, password }: AuthCredentials): AxiosPromise<AuthenticateResponse> {
 		if (!username) {
-			throw new Error("Missing username. Cannot authenticate");
+			throw new AxiosError("Missing username. Cannot authenticate", `${HttpStatusCode.BadRequest}`);
 		}
 		if (!password) {
-			throw new Error("Missing password. Cannot authenticate");
+			throw new AxiosError("Missing password. Cannot authenticate", `${HttpStatusCode.BadRequest}`);
 		}
 
 		// Construct the data payload
@@ -63,26 +62,15 @@ class AuthController extends ScrapperController {
 			const url = `${this.axios.defaults.baseURL}?p=login`;
 			const response = await this.axios.post<string>(url, formData, {
 				headers: {
-					"Content-type": "application/x-www-form-urlencoded",
+					[SCRAPPER_HEADERS.CONTENT_TYPE]: "application/x-www-form-urlencoded",
 				},
 				transformRequest: (data) => {
 					return formData;
 				},
 			});
 
-			if (response.status !== 200) {
+			if (response.status !== HttpStatusCode.Ok) {
 				throw response;
-			}
-
-			const pageTitle = this.getPageTitle(response.data);
-
-			if (pageTitle?.includes("Logout")) {
-				throw {
-					...response,
-					status: HttpStatusCode.Unauthorized,
-					statusText: "There was an error while loging in",
-					data: "Logged out of Managerzone.",
-				};
 			}
 
 			const jsonCookies = this.parseAuthenticateResponse(response);
@@ -93,8 +81,6 @@ class AuthController extends ScrapperController {
 			};
 		} catch (response: any) {
 			const res: AxiosResponse<string> = response;
-
-			console.error(res.statusText);
 			throw res;
 		}
 	}

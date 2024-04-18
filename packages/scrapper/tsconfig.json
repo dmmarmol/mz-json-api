@@ -8,7 +8,10 @@
 		"outDir": "./dist",
 		"declaration": true,
 		"typeRoots": ["./global.d.ts"],
-		"esModuleInterop": true
+		"esModuleInterop": true,
+		"paths": {
+			"controllers/*": ["./controllers/*"]
+		}
 	},
 	"include": ["src/**/*.ts"],
 	"exclude": ["node_modules"]

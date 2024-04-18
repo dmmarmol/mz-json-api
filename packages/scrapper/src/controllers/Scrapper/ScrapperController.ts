@@ -3,6 +3,8 @@ import axios, { AxiosInstance, HttpStatusCode } from "axios";
 import curlirize from "axios-to-curl";
 import { wrapper } from "axios-cookiejar-support";
 import { Cookie, CookieJar } from "tough-cookie";
+import { FullUrlCombinations, KEY_MESSAGE, SCRAPPER_HEADERS } from "../types";
+import cheerio, { CheerioAPI } from "cheerio";
 
 const envPath = path.resolve(__dirname, "./../../../../../.env");
 require("dotenv").config({
@@ -12,9 +14,6 @@ require("dotenv").config({
 export type ScrapperSettings = {
 	cookies?: Cookie.Serialized[] | Record<string, string>;
 };
-
-type availablePaths = "team" | "clubhouse";
-type availableSub = "awards";
 
 class ScrapperController {
 	public baseURL?: string;
@@ -34,7 +33,6 @@ class ScrapperController {
 				const serializedCookies: Cookie.Serialized[] = Object.entries(settings.cookies).map(([key, value]) => {
 					return { key, value };
 				});
-				console.log({ serializedCookies });
 				this.cookies = serializedCookies;
 			}
 		}
@@ -71,27 +69,61 @@ class ScrapperController {
 			baseURL: this.baseURL,
 			timeout: 1000 * 10,
 			withCredentials: false,
+			transformResponse: (data, headers) => {
+				headers.originalData = data;
+				// headers.originalHeaders = headers;
+				return data;
+			},
+			// beforeRedirect(options, responseDetails) {
+			// 	// const path = options.search;
+			// 	const path = responseDetails.headers.location;
+
+			// 	if (responseDetails.statusCode === HttpStatusCode.Found) {
+			// 		responseDetails.statusCode = HttpStatusCode.Unauthorized;
+			// 		console.debug("🔒 Unauthorized", `Path: ${path} | Status: ${responseDetails.statusCode}`);
+			// 		return;
+			// 	}
+
+			// 	if (path.includes("/?p=logout")) {
+			// 		responseDetails.statusCode = HttpStatusCode.Unauthorized;
+			// 		console.debug("❌ Logout", `Path: ${path} | Status: ${responseDetails.statusCode}`);
+			// 		return;
+			// 	}
+
+			// 	if (path.includes("/?p=start&msg=wrong_username_or_password")) {
+			// 		responseDetails.statusCode = HttpStatusCode.Unauthorized;
+			// 		console.debug("❌ Wrong Credentials", `Path: ${path} | Status: ${responseDetails.statusCode}`);
+			// 		return;
+			// 	}
+
+			// 	return;
+			// },
 			maxRedirects: 5, // Set the maximum number of redirects to follow
-			validateStatus: (status) => (status >= 200 && status < 300) || status === 302, // Allow axios to follow redirects
+			validateStatus: (status) => {
+				// Allow axios to follow redirects
+				return (
+					(status >= HttpStatusCode.Ok && status < HttpStatusCode.MultipleChoices) ||
+					status === HttpStatusCode.Found
+				);
+			},
 			headers: {
-				Accept: "application/json, text/javascript, */*; q=0.01",
-				"X-Requested-With": "XMLHttpRequest",
-				"Content-Type": "text/html;charset=utf-8",
+				// [SCRAPPER_HEADERS.ACCEPT]: "application/json, text/javascript, */*; q=0.01",
+				[SCRAPPER_HEADERS.ACCEPT]: "*/*",
+				[SCRAPPER_HEADERS.X_REQUESTED_WITH]: "XMLHttpRequest",
+				[SCRAPPER_HEADERS.CONTENT_TYPE]: "text/html;charset=utf-8",
+				// [SCRAPPER_HEADERS.ACCESS_CONTROL_HEADERS]: "*",
 			},
 		});
 
-		// Handle Cookies
 		const clientInstance = wrapper(instance);
 		if (process.env.DEBUG) {
 			// Print cURL request
-			curlirize(clientInstance, () => {
-				console.log("\n");
-			});
+			curlirize(clientInstance);
 		}
 
 		clientInstance.interceptors.request.use((req) => {
 			if (process.env.DEBUG) {
-				console.log("\n 🔜 Starting Request", {
+				console.debug(" 🔜 Starting Request", {
 					method: req.method,
 					url: req.url,
 					headers: req.headers,
@@ -103,30 +135,47 @@ class ScrapperController {
 		});
 
 		clientInstance.interceptors.response.use((res) => {
+			const messages = this.getPageMessages(res?.headers.originalData);
+
 			if (process.env.DEBUG) {
-				const title = this.getPageTitle(res?.data);
-				console.log("\n 🔚 Response:", {
+				console.debug(" 🔚 Response:", {
 					url: res.config.url,
 					status: res.status,
 					statusText: res.statusText,
-					headers: res.headers,
-					data: JSON.stringify(res.data, null, 2).slice(0, 100),
-					title,
+					headers: Object.keys(res.headers).reduce((acc, key) => {
+						const header = res.headers[key];
+						return { ...acc, [key]: `${header}`.length > 75 ? `${header.slice(0, 75)}...` : header };
+					}, {}),
+					data: typeof res.data === "string" ? JSON.stringify(res.data, null, 2).slice(0, 100) : res.data,
+					title: messages,
 				});
 			}
 
-			if (res.status === HttpStatusCode.Unauthorized) {
-				res.statusText = "Logout";
-				res.status = HttpStatusCode.Unauthorized;
-				throw res;
+			try {
+				// Wrong Credentials
+				if (messages.invalidCredentials.includes(KEY_MESSAGE.INVALID_CREDENTIALS)) {
+					res.statusText = messages.invalidCredentials;
+					res.status = HttpStatusCode.Unauthorized;
+					console.debug(messages.invalidCredentials, "About to throw an unauthorized response ->");
+					throw res;
+				}
+
+				// Logged Out
+				if (messages.pageTitle.includes(KEY_MESSAGE.LOGOUT)) {
+					res.statusText = messages.pageTitle;
+					res.status = HttpStatusCode.Unauthorized;
+					console.debug(messages.pageTitle, "About to throw an unauthorized response ->");
+					throw res;
+				}
+			} catch (error: any) {
+				return error;
 			}
 
 			const cookies = res.config.jar?.toJSON();
-			if (process.env.DEBUG && cookies?.cookies.length) {
-				console.log("🍪 Response Cookies");
-				console.log(cookies);
-			}
 			this.cookies = cookies ? cookies.cookies : [];
+			if (process.env.DEBUG && cookies?.cookies.length) {
+				console.debug("🍪 Response Cookies", this.getCookies());
+			}
 
 			// Return the response
 			return res;
@@ -136,8 +185,9 @@ class ScrapperController {
 	};
 
 	private _checkEnvs() {
-		console.log("\n🔍 Check if env variables are set");
+		console.debug("🔍 Check if env variables are set");
 		const vars = [
+			"NODE_ENV",
 			"SCRAPPER_BASE_URL",
 			"SCRAPPER_AUTH_USERNAME",
 			"SCRAPPER_AUTH_MD5_PASSWORD",
@@ -148,10 +198,12 @@ class ScrapperController {
 		vars.forEach((envVar) => {
 			console.log(`${envVar}=${process.env[envVar]}`);
 		});
-		console.log("🔚 Done\n");
 	}
 
-	public getCookies(selectedCookies: string[] = []) {
+	/**
+	 * Returns a string containing the existing cookies
+	 */
+	public getCookies(selectedCookies: string[] = []): string {
 		const defaultCookies = this.cookies.map((cookie) => cookie.key);
 		const cookiesToUse = selectedCookies.length ? selectedCookies : defaultCookies;
 
@@ -164,6 +216,9 @@ class ScrapperController {
 		return cookies.join(" ");
 	}
 
+	/**
+	 * Returns an absolute MZ resource URL
+	 */
 	public getResourceUrl(path: string) {
 		return `${this.baseURL}${path}`;
 	}
@@ -171,26 +226,41 @@ class ScrapperController {
 	/**
 	 * Returns a full MZ Route URL
 	 */
-	public getFullUrl({ path, sub }: { path: availablePaths; sub?: availableSub }): string {
+	public getFullUrl({ path, sub }: FullUrlCombinations): string {
 		const url = [this.baseURL, path ? `?p=${path}` : undefined, sub ? `&sub=${sub}` : undefined];
 
 		return url.filter(Boolean).join("");
 	}
 
-	public getPageTitle(body?: any): string {
-		const defaultValue: string = "No Title";
-		const defaultTitle: string = `<title>${defaultValue}</title>`;
-		const regex = /<title>(.*?)<\/title>/;
+	private messagesSelector = {
+		invalidCredentials: ($: CheerioAPI): string => {
+			const htmlRegex = /(?<=<[^>]>)([^<]+)(?=<\/[^>]+>)/;
+			const value = $("#login_form_content > div.form_error_content.wrong_username_or_password").html() as string;
+			const matched = `${value}`.match(htmlRegex);
 
-		const target = body ? body : defaultTitle;
-		if (typeof target !== "string") {
-			return defaultValue;
-		}
+			return matched?.length ? matched[1] : "";
+		},
+		pageTitle: ($: CheerioAPI): string => {
+			const htmlRegex = /(?<=<[^>]>)([^<]+)(?=<\/[^>]+>)/;
+			const value = $("head > title").html() as string;
+			const matched = `${value}`.match(htmlRegex);
 
-		const pageTitle = target.match(regex);
-		const title = pageTitle && pageTitle.length >= 2 ? pageTitle[1] : defaultValue;
+			return matched?.length ? matched[1] : "";
+		},
+	};
 
-		return title;
+	private getPageMessages(body: string): Record<keyof typeof this.messagesSelector, string> {
+		const defaultBody = "<html>Default</html>";
+		const $ = cheerio.load(body ? body : defaultBody);
+
+		const messages = Object.keys(this.messagesSelector).reduce((acc, key) => {
+			const selectorFn = this.messagesSelector[key as keyof typeof this.messagesSelector];
+			const content = selectorFn($);
+
+			return { ...acc, [key]: content };
+		}, {} as Record<keyof typeof this.messagesSelector, string>);
+
+		return messages;
 	}
 }
 
