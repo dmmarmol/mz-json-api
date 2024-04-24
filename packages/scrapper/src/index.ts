@@ -22,6 +22,6 @@ async function init() {
 	// await navigation.getNavigation();
 }
 
-if (process.env.DEBUG) {
+if (JSON.parse(process.env.DEBUG as string)) {
 	// init();
 }

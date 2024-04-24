@@ -75,10 +75,12 @@ class AuthController extends ScrapperController {
 
 			const jsonCookies = this.parseAuthenticateResponse(response);
 
-			return {
+			const axiosResponse: AxiosResponse<AuthenticateResponse> = {
 				...response,
 				data: jsonCookies,
 			};
+
+			return axiosResponse;
 		} catch (response: any) {
 			const res: AxiosResponse<string> = response;
 			throw res;

@@ -19,9 +19,11 @@ class ScrapperController {
 	public baseURL?: string;
 	public axios: AxiosInstance;
 	public cookies: Cookie.Serialized[] = [];
+	public isDebug: boolean = JSON.parse(process.env.DEBUG as string);
 
 	constructor(settings?: ScrapperSettings) {
-		if (process.env.DEBUG) {
+		this.isDebug = JSON.parse(process.env.DEBUG as string);
+		if (JSON.parse(process.env.DEBUG as string)) {
 			this._checkEnvs();
 		}
 
@@ -116,13 +118,13 @@ class ScrapperController {
 		});
 
 		const clientInstance = wrapper(instance);
-		if (process.env.DEBUG) {
+		if (this.isDebug) {
 			// Print cURL request
 			curlirize(clientInstance);
 		}
 
 		clientInstance.interceptors.request.use((req) => {
-			if (process.env.DEBUG) {
+			if (this.isDebug) {
 				console.debug(" 🔜 Starting Request", {
 					method: req.method,
 					url: req.url,
@@ -137,7 +139,7 @@ class ScrapperController {
 		clientInstance.interceptors.response.use((res) => {
 			const messages = this.getPageMessages(res?.headers.originalData);
 
-			if (process.env.DEBUG) {
+			if (this.isDebug) {
 				console.debug(" 🔚 Response:", {
 					url: res.config.url,
 					status: res.status,
@@ -173,7 +175,7 @@ class ScrapperController {
 
 			const cookies = res.config.jar?.toJSON();
 			this.cookies = cookies ? cookies.cookies : [];
-			if (process.env.DEBUG && cookies?.cookies.length) {
+			if (this.isDebug && cookies?.cookies.length) {
 				console.debug("🍪 Response Cookies", this.getCookies());
 			}
 
