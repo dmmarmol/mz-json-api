@@ -9,7 +9,12 @@ export type JSONResponse<R = any> = R extends unknown
 
 export type AvailableURLPaths = "team" | "clubhouse" | "players";
 export type AvailableURLSub = "awards" | "alt";
-export type FullUrlCombinations = { path: AvailableURLPaths; sub?: AvailableURLSub };
+export type FullUrlCombinations =
+	| { path: "team"; sub: "awards" }
+	| { path: "clubhouse"; sub: undefined }
+	| { path: "players"; sub: undefined }
+	| { path: "players"; sub: "alt" };
+
 
 export enum SCRAPPER_HEADERS {
 	ACCEPT = "Accept",
